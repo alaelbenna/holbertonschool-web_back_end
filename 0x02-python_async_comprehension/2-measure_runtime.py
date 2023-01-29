@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
-'''
-Asynch comprehensions
-'''
+
+"""Run time for four parallel comprehensions"""
 
 import asyncio
-import random
-from typing import List
-async_generator = __import__('0-async_generator').async_generator
+import time
+
+async_comprehension = __import__('1-async_comprehension').async_comprehension
 
 
-async def async_comprehension() -> List[float]:
-    '''
-    coroutine will collect 10 random numbers using an async comprehensing
-    over async_generator, then return the 10 random numbers.
-    '''
-
-    return [number async for number in async_generator()]
+async def measure_runtime() -> float:
+    """ asyncio.gather"""
+    t0 = time.time()
+    rs = [async_comprehension() for i in range(4)]
+    await asyncio.gather(*rs)
+    return time.time() - t0
+    
