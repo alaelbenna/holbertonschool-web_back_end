@@ -17,3 +17,4 @@ def make_multiplier(multiplier: float) -> Callable[[float], float]:
         """
         return var * multiplier
     return function
+    
