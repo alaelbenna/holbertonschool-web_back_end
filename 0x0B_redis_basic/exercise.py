@@ -1,94 +1,98 @@
 #!/usr/bin/env python3
-''' redis module
-'''
+"""Module Cache class
+"""
 import redis
 from uuid import uuid4
-from typing import Union, Optional, Callable
+from typing import Union, Callable
 from functools import wraps
 
 
-UnionOfTypes = Union[str, bytes, int, float]
-
-
 def count_calls(method: Callable) -> Callable:
-        '''count number of calls
-                Callable: [method] '''
+        """Decorator that increments the count for that key every time the
+            method is called and returns the value returned by the original method.
+                """
                     key = method.__qualname__
 
                         @wraps(method)
-                            def wrapper(self, *args, **kwds):
-                                        '''wrapper of decorator'''
-                                                self._redis.incr(key)
-                                                        return method(self, *args, **kwds)
-                                                            return wrapper
+                            def wrapper(self, *args, **kwargs):
+                                        """Wrapped function
+                                                """
+                                                        self._redis.incr(key)
+                                                                return method(self, *args, **kwargs)
+                                                                return wrapper
 
 
-                                                        def call_history(method: Callable) -> Callable:
-                                                                ''' number of history inputs'''
-                                                                    inputs = method.__qualname__ + ':inputs'
-                                                                        outputs = method.__qualname__ + ':outputs'
+                                                            def call_history(method: Callable) -> Callable:
+                                                                    """Decorator to store the history of inputs and outputs for a particular
+                                                                        function.
+                                                                            """
 
-                                                                            @wraps(method)
-                                                                                def wrapper(self, *args, **kwds):
-                                                                                            '''wrapper of decorator'''
-                                                                                                    self._redis.rpush(inputs, str(args))
-                                                                                                            returned_method = method(self, *args, **kwds)
-                                                                                                                    self._redis.rpush(outputs, str(returned_method))
-                                                                                                                            return returned_method
-                                                                                                                            return wrapper
-
-
-                                                                                                                        def replay(method: Callable):
-                                                                                                                            ''' replay to display hstory of calls'''
-                                                                                                                                self_ = method.__self__
-                                                                                                                                    stored_name = method.__qualname__
-                                                                                                                                        stored_key = self_.get(stored_name)
-                                                                                                                                            if stored_key:
-                                                                                                                                                        times = self_.get_str(stored_key)
-                                                                                                                                                                inputs = self_._redis.lrange(stored_name + ':inputs', 0, -1)
-                                                                                                                                                                        outputs = self_._redis.lrange(stored_name + ':outputs', 0, -1)
-
-                                                                                                                                                                                print(f'{stored_name} was called {times} times:')
-                                                                                                                                                                                        zipvalues = zip(inputs, outputs)
-                                                                                                                                                                                                result_list = list(zipvalues)
-                                                                                                                                                                                                        for k, v in result_list:
-                                                                                                                                                                                                                        name = self_.get_str(k)
-                                                                                                                                                                                                                                    val = self_.get_str(v)
-                                                                                                                                                                                                                                                print(f'{stored_name}(*{name}) -> {val}')
+                                                                                @wraps(method)
+                                                                                    def wrapper(self, *args, **kwargs):
+                                                                                                """Wrapped function
+                                                                                                        """
+                                                                                                                input = str(args)
+                                                                                                                        output = str(method(self, *args, **kwargs))
+                                                                                                                                self._redis.rpush(method.__qualname__ + ":inputs", input)
+                                                                                                                                        self._redis.rpush(method.__qualname__ + ":outputs", output)
+                                                                                                                                                return output
+                                                                                                                                                return wrapper
 
 
-                                                                                                                                                                                                                                                class Cache:
-                                                                                                                                                                                                                                                    ''' Cache redis class
-                                                                                                                                                                                                                                                        '''
+                                                                                                                                            def replay(method: Callable):
+                                                                                                                                                    """Function that displays the history of calls of a particular function
+                                                                                                                                                        """
+                                                                                                                                                            key = method.__qualname__
+                                                                                                                                                                inputs = key + ":inputs"
+                                                                                                                                                                    outputs = key + ":outputs"
+                                                                                                                                                                        redis = method.__self__._redis
+                                                                                                                                                                            count = redis.get(key).decode("utf-8")
+                                                                                                                                                                                print("{} was called {} times:".format(key, count))
 
-                                                                                                                                                                                                                                                            def __init__(self):
-                                                                                                                                                                                                                                                                        ''' constructor for redis model
-                                                                                                                                                                                                                                                                                '''
-                                                                                                                                                                                                                                                                                        self._redis = redis.Redis()
-                                                                                                                                                                                                                                                                                                self._redis.flushdb()
+                                                                                                                                                                                    in_list = redis.lrange(inputs, 0, -1)
+                                                                                                                                                                                        out_list = redis.lrange(outputs, 0, -1)
+                                                                                                                                                                                            redis_zipped = list(zip(in_list, out_list))
 
-                                                                                                                                                                                                                                                                                                    @call_history
-                                                                                                                                                                                                                                                                                                        @count_calls
-                                                                                                                                                                                                                                                                                                            def store(self, data: UnionOfTypes) -> str:
-                                                                                                                                                                                                                                                                                                                        '''storind data into redis cache'''
-                                                                                                                                                                                                                                                                                                                                key = str(uuid4())
+                                                                                                                                                                                                for a, b in redis_zipped:
+                                                                                                                                                                                                            attr, data = a.decode("utf-8"), b.decode("utf-8")
+                                                                                                                                                                                                                    print("{}(*{}) -> {}".format(key, attr, data))
 
-                                                                                                                                                                                                                                                                                                                                        self._redis.mset({key: data})
-                                                                                                                                                                                                                                                                                                                                                return key
 
-                                                                                                                                                                                                                                                                                                                                                def get(self, key: str, fn: Optional[Callable] = None)\
-                                                                                                                                                                                                                                                                                                                                                                    -> UnionOfTypes:
-                                                                                                                                                                                                                                                                                                                                                                            '''get keys from redis'''
-                                                                                                                                                                                                                                                                                                                                                                                    if fn:
-                                                                                                                                                                                                                                                                                                                                                                                                return fn(self._redis.get(key))
-                                                                                                                                                                                                                                                                                                                                                                                                    data = self._redis.get(key)
-                                                                                                                                                                                                                                                                                                                                                                                                            return data
+                                                                                                                                                                                                                    class Cache:
+                                                                                                                                                                                                                            """Cache class
+                                                                                                                                                                                                                                """
+                                                                                                                                                                                                                                    def __init__(self):
+                                                                                                                                                                                                                                                """Constructor method
+                                                                                                                                                                                                                                                        """
+                                                                                                                                                                                                                                                                self._redis = redis.Redis()
+                                                                                                                                                                                                                                                                        self._redis.flushdb()
 
-                                                                                                                                                                                                                                                                                                                                                                                                            def get_str(self, string: bytes) -> str:
-                                                                                                                                                                                                                                                                                                                                                                                                                        ''' get a string '''
-                                                                                                                                                                                                                                                                                                                                                                                                                                return string.decode('utf-8')
+                                                                                                                                                                                                                                                                            @count_calls
+                                                                                                                                                                                                                                                                                @call_history
+                                                                                                                                                                                                                                                                                    def store(self, data: Union[str, bytes, int, float]) -> str:
+                                                                                                                                                                                                                                                                                                """Method that generates a random key, stores the input data in Redis
+                                                                                                                                                                                                                                                                                                        using the random key and return the key.
+                                                                                                                                                                                                                                                                                                                """
+                                                                                                                                                                                                                                                                                                                        key = str(uuid4())
+                                                                                                                                                                                                                                                                                                                                self._redis.set(key, data)
+                                                                                                                                                                                                                                                                                                                                        return key
 
-                                                                                                                                                                                                                                                                                                                                                                                                                                def get_int(self, number: int) -> int:
-                                                                                                                                                                                                                                                                                                                                                                                                                                        ''' get int value'''
-                                                                                                                                                                                                                                                                                                                                                                                                                                                result = 0 * 256 + int(number)
-                                                                                                                                                                                                                                                                                                                                                                                                                                                        return result
+                                                                                                                                                                                                                                                                                                                                        def get(self, key: str, fn: Callable = None) -> Union[str, bytes, int, float]:
+                                                                                                                                                                                                                                                                                                                                                    """Convert the data back to the desired format
+                                                                                                                                                                                                                                                                                                                                                            """
+                                                                                                                                                                                                                                                                                                                                                                    data = self._redis.get(key)
+                                                                                                                                                                                                                                                                                                                                                                            if fn:
+                                                                                                                                                                                                                                                                                                                                                                                            return fn(data)
+                                                                                                                                                                                                                                                                                                                                                                                                return data
+
+                                                                                                                                                                                                                                                                                                                                                                                                def get_str(self, key: str) -> str:
+                                                                                                                                                                                                                                                                                                                                                                                                            """Method that automatically parametrize Cache.get to string
+                                                                                                                                                                                                                                                                                                                                                                                                                    """
+                                                                                                                                                                                                                                                                                                                                                                                                                            data = self._redis.get(key)
+                                                                                                                                                                                                                                                                                                                                                                                                                                    return str(data.decode("utf-8"))
+
+                                                                                                                                                                                                                                                                                                                                                                                                                                    def get_int(self, key: str) -> int:
+                                                                                                                                                                                                                                                                                                                                                                                                                                                """Method that automatically parametrize Cache.get to int
+                                                                                                                                                                                                                                                                                                                                                                                                                                                        """
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                data = self._redis.get(key)
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                        return int(data.decode("utf-8"))
