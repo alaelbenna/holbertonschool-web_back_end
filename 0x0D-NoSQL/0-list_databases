@@ -1,0 +1,6 @@
+// Connect to MongoDB server
+mongo
+
+// List all databases
+show dbs
+
