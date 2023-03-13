@@ -1,0 +1,5 @@
+// Connect to MongoDB server
+mongo
+
+// Switch to my_db or create it if it doesn't exist
+use my_db
