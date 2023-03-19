@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-""" pymongo module """
+"""find and update a document module"""
 
 
 def update_topics(mongo_collection, name, topics):
-    """ Change school topics """
-        query = {"name": name}
-        update = {"$set": {"topics": topics}}
-        mongo_collection.update_many(query, update)
+        """find an attribute and change its value"""
+
+        if mongo_collection:
+            mongo_collection.update_many({"name": name}, { '$set': { "topics": topics} })
